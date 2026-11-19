@@ -1,0 +1,22 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null && $roomId.matches(/^[a-zA-Z0-9_-]{6,48}$/)",
+        ".write": "auth != null && $roomId.matches(/^[a-zA-Z0-9_-]{6,48}$/) && ((!data.exists() && newData.exists() && newData.child('djUid').val() === auth.uid) || (data.exists() && newData.exists() && data.child('djUid').val() === auth.uid && newData.child('djUid').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['djUid', 'state']) && newData.child('djUid').isString() && newData.child('state').hasChildren(['videoId', 'playlistId', 'playing', 'position', 'updatedAt', 'revision'])",
+        "djUid": { ".validate": "newData.isString() && newData.val().length <= 128" },
+        "state": {
+          "videoId": { ".validate": "newData.isString() && newData.val().matches(/^[a-zA-Z0-9_-]{0,11}$/)" },
+          "playlistId": { ".validate": "newData.isString() && newData.val().matches(/^[a-zA-Z0-9_-]{0,100}$/)" },
+          "playing": { ".validate": "newData.isBoolean()" },
+          "position": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 864000" },
+          "updatedAt": { ".validate": "newData.isNumber() && newData.val() > 0" },
+          "revision": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "$other": { ".validate": false }
+        },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
