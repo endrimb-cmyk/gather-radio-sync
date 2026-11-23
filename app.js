@@ -20,6 +20,50 @@ let googleAccessToken = '', youtubeAccessExpiry = 0;
 let listening = false, joining = false, player = null, playerReady = false;
 let ytPromise = null, loadedKey = '', lastDJVideo = '', lastPublished = 0, ignorePlayerUntil = 0;
 let activeCatalogTab = 'search', catalogBusy = false;
+let lastRecentSignature = '';
+function recentKey(){return '044-radio-recent-v4-'+(user?.uid||'guest');}
+function readRecent(){
+  try{const items=JSON.parse(localStorage.getItem(recentKey())||'[]');return Array.isArray(items)?items.filter(x=>videoPattern.test(x?.id||'')).slice(0,12):[];}catch{return [];}
+}
+function rememberVideo(id,title,artist){
+  if(!isGoogle()||!videoPattern.test(id))return;
+  const songs=readRecent().filter(x=>x.id!==id);
+  songs.unshift({id,title:String(title||'YouTube').slice(0,160),artist:String(artist||'YouTube').slice(0,120)});
+  try{localStorage.setItem(recentKey(),JSON.stringify(songs.slice(0,12)));}catch{}
+  lastRecentSignature='';renderRecent();
+}
+function renderRecent(){
+  const entries=isGoogle()?readRecent():[];
+  const key=JSON.stringify([user?.uid,entries]);if(lastRecentSignature===key)return;
+  lastRecentSignature=key;
+  const host=$('recentGrid');host.replaceChildren();
+  shown('recentEmpty',!entries.length);
+  for(const item of entries){
+    const card=document.createElement('div');card.className='track';
+    const img=document.createElement('img');img.src=currentCover(item.id);img.alt='Обкладинка';img.loading='lazy';
+    const details=document.createElement('div');details.className='details';
+    const name=document.createElement('strong');name.textContent=item.title;
+    const artist=document.createElement('span');artist.textContent=item.artist;
+    const button=document.createElement('button');button.className='small';button.textContent='В ефір';
+    button.disabled=!isDJ;button.title=isDJ?'Додати композицію до спільного ефіру':'Створи свій ефір, щоб керувати музикою';
+    button.addEventListener('click',()=>setSelectedVideo(item.id,item.title,item.artist));
+    details.append(name,artist,button);card.append(img,details);host.appendChild(card);
+  }
+}
+function goToSection(id){
+  let el=$(id);
+  if(!el||el.classList.contains('hide'))el=$('setupPane');
+  el?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function setNav(id){
+  for(const node of document.querySelectorAll('.nav')) node.classList.toggle('active',node.id===id);
+}
+function goToCatalog(tab){
+  if(!room){goToSection('setupPane');alertUser('Спочатку увійди через Google та створи спільний ефір.');return;}
+  if(!isDJ){goToSection('roomPane');alertUser('Ти підключений як слухач. Музику обирає тільки власник кімнати.');return;}
+  alertUser('');chooseTab(tab);goToSection('djPane');
+}
+
 
 function status(message, cls='') { $('connection').textContent=message; $('connection').className='pill '+cls; }
 function alertUser(message) { $('alert').textContent=message || ''; shown('alert',!!message); }
@@ -47,7 +91,7 @@ function render() {
   shown('leaveBtn', !!room && listening);
   $('role').textContent = isDJ ? '🎙️ Ведучий' : '🎧 Слухач';
   $('role').className = 'pill' + (isDJ?' ok':'');
-  if (!room) return;
+  if (!room) {shown('miniPlayer',false);renderRecent();return;}
   $('shareLink').value = linkToRoom();
   $('songName').textContent = state?.videoTitle || (state?.videoId ? 'Відтворення YouTube' : 'Музика ще не обрана');
   $('songArtist').textContent = state?.channelTitle || (state?.videoId ? 'YouTube' : 'Очікуємо ведучого');
@@ -59,6 +103,15 @@ function render() {
   $('pauseBtn').disabled = !state?.videoId;
   $('nextBtn').disabled = !state?.playlistId;
   shown('authorizeCatalogBtn', isDJ && !usableGoogleToken());
+  const active=!!state?.videoId;
+  shown('miniPlayer', active);
+  if(active){
+    $('miniCover').src=currentCover(state.videoId);
+    $('miniTitle').textContent=state.videoTitle||'YouTube';
+    $('miniArtist').textContent=state.channelTitle||'YouTube';
+    $('miniStatus').textContent=state.playing?'● Зараз грає':'II На паузі';
+  }
+  renderRecent();
 }
 
 function usableGoogleToken() { return !!googleAccessToken && Date.now() < youtubeAccessExpiry; }
@@ -211,7 +264,7 @@ function onYTState(e) {
   if(e.data===window.YT.PlayerState.PLAYING){
     shown('unblockBtn',false);playbackHint('');
     if(lastDJVideo!==vid||!state?.playing||Date.now()-lastPublished>2200){
-      lastDJVideo=vid;lastPublished=Date.now();publish({...meta,playing:true,position:ytTime()});
+      lastDJVideo=vid;lastPublished=Date.now();rememberVideo(vid,meta.videoTitle,meta.channelTitle);publish({...meta,playing:true,position:ytTime()});
     }
   } else if(e.data===window.YT.PlayerState.PAUSED){
     if(state?.playing){lastPublished=Date.now();publish({...meta,playing:false,position:ytTime()});}
@@ -260,7 +313,7 @@ async function setSelectedVideo(id,title,channel,playlistId='') {
   if(!isDJ||!videoPattern.test(id))return;
   ignorePlayerUntil=Date.now()+1500;lastDJVideo='';
   const ok=await publish({videoId:id,videoTitle:String(title||'YouTube').slice(0,160),channelTitle:String(channel||'YouTube').slice(0,120),playlistId,playing:false,position:0});
-  if(ok){catalogMessage('Обрано: '+title+'. Натисни «Відтворити».');if(!listening)join();}
+  if(ok){rememberVideo(id,title,channel);catalogMessage('Обрано: '+title+'. Натисни «Відтворити».');if(!listening)join();}
 }
 async function searchSongs(){
   if(catalogBusy||!isDJ)return;
@@ -307,6 +360,28 @@ function chooseTab(tab){
   clearCards();catalogMessage('');
 }
 
+for(const btn of document.querySelectorAll('.nav')){
+  btn.addEventListener('click',()=>{
+    setNav(btn.id);
+    const view=btn.dataset.view;
+    if(view==='home')goToSection('homeView');
+    else if(view==='explore')goToCatalog('search');
+    else if(view==='library'){goToCatalog('playlists');if(isDJ&&usableGoogleToken())loadPlaylists();}
+    else if(view==='room')goToSection(room?'roomPane':'setupPane');
+  });
+}
+$('miniGoBtn').addEventListener('click',()=>{setNav('navRoom');goToSection('roomPane');});
+$('openExploreBtn').addEventListener('click',()=>{setNav('navExplore');goToCatalog('search');});
+for(const chip of document.querySelectorAll('[data-q]')){
+  chip.addEventListener('click',()=>{
+    for(const node of document.querySelectorAll('[data-q]'))node.classList.toggle('active',node===chip);
+    $('queryInput').value=chip.dataset.q;
+    setNav('navExplore');
+    if(isDJ){goToCatalog('search');searchSongs();}
+    else if(room)goToCatalog('search');
+    else goToSection('setupPane');
+  });
+}
 $('loginBtn').addEventListener('click',googleLogin);
 $('logoutBtn').addEventListener('click',googleLogout);
 $('authorizeCatalogBtn').addEventListener('click',googleLogin);
@@ -325,8 +400,8 @@ $('aheadBtn').addEventListener('click',()=>djSeek(10));
 $('nextBtn').addEventListener('click',djNext);
 $('searchTab').addEventListener('click',()=>chooseTab('search'));
 $('playlistsTab').addEventListener('click',()=>chooseTab('playlists'));
-$('searchBtn').addEventListener('click',searchSongs);
-$('queryInput').addEventListener('keydown',e=>{if(e.key==='Enter')searchSongs();});
+$('searchBtn').addEventListener('click',()=>{setNav('navExplore');if(isDJ){chooseTab('search');goToSection('djPane');searchSongs();}else goToCatalog('search');});
+$('queryInput').addEventListener('keydown',e=>{if(e.key==='Enter'){$('searchBtn').click();}});
 $('fetchPlaylistsBtn').addEventListener('click',loadPlaylists);
 setInterval(()=>{
   if(!listening||!playerReady||!state)return;
