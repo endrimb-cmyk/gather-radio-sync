@@ -1,95 +1,65 @@
-# Gather Radio Sync — спільний музичний ефір для Gather 2.0
+# 044 Radio 3.0 — Google login + пошук + спільний ефір у Gather V2
 
-Це готовий *статичний вебзастосунок* для **Interactive Object → Custom URL** у Gather 2.0. Ведучий керує треком/плейлистом; кожен охочий натискає «Підключитися» і чує приблизно той самий момент композиції. Усі слухають в **окремому YouTube-плеєрі**, а не через voice chat Gather. Права керування перевіряє Firebase Realtime Database.
+Це оновлення до попереднього `gather-radio-sync` для Firebase-проєкту `music-c1336`.
 
-## Що потрібно
+## Що працює в цій версії
 
-- Безкоштовний обліковий запис **GitHub** з GitHub Pages.
-- Проєкт **Firebase** (Authentication + Realtime Database). За невеликого використання можна почати з безкоштовного тарифу Spark; квоти залежать від використання.
-- Публічні YouTube / YouTube Music треки чи плейлисти, які дозволяють вбудоване відтворення.
-
-**Важливо:** один тільки GitHub Pages не синхронізує користувачів. Firebase зберігає поточний трек, статус і часову мітку; відкритий YouTube IFrame API забезпечує відтворення.
-
-## Крок 1. Створи Firebase
-
-1. Відкрий https://console.firebase.google.com/ → **Add project / Create project**.
-2. У налаштуваннях проєкту (**Project Settings** → **Your apps**) додай **Web App** (піктограма `</>`). Скопіюй об'єкт `firebaseConfig`.
-3. В лівому меню відкрий **Build → Authentication → Get started → Sign-in method → Anonymous → Enable**. Це дозволяє слухачам підключатися **без акаунта Firebase**.
-4. Відкрий **Build → Realtime Database → Create Database**. Обери регіон і **Start in locked mode**. **Не використовуй загальнодоступний test mode.**
-5. У Realtime Database → **Rules** заміни увесь вміст JSON на файл `database.rules.json` із цього архіву → **Publish**.
-6. У `config.js` заміни значення `apiKey`, `authDomain`, `databaseURL`, `projectId`, `appId` на дані свого Web App. **`databaseURL` має збігатися з адресою створеної Realtime Database** (у різних регіонах може бути `firebaseio.com` або `firebasedatabase.app`). Якщо `databaseURL` відсутня в налаштуваннях Web App — додай її вручну з Realtime Database → Data.
-7. Не додавай приватні service account keys: для браузерного проєкту потрібні лише публічні налаштування Firebase Web App.
-
-Прямі офіційні інструкції:
-- https://firebase.google.com/docs/auth/web/anonymous-auth
-- https://firebase.google.com/docs/database/web/start
-- https://firebase.google.com/docs/database/security
-
-## Крок 2. Публікація через GitHub Pages
-
-1. Створи **публічний** GitHub репозиторій, наприклад `gather-radio-sync`: https://github.com/new
-2. Додай ці файли **в корінь репозиторію**: `index.html`, `app.js`, `config.js`, `.nojekyll`, `database.rules.json`, `README.md`. Не завантажуй ZIP як єдиний файл.
-3. Перейди в **Settings → Pages → Build and deployment → Deploy from a branch**; обери `main` і `/(root)` → Save.
-4. Відкрий `https://ТВІЙ-НІК.github.io/gather-radio-sync/` (назва репозиторію в URL повинна збігатися з твоєю).
-5. Натисни **«Створити ефір»**. Сайт створить радіокімнату й допише до URL випадковий `?room=...`. **Скопіюй саме URL кімнати**, а не просто адресу головної сторінки.
-
-## Крок 3. Додай у Gather V2
-
-1. Відкрий Gather → **Decorator**.
-2. Відкрий категорію **Interactive Objects** (не Smart Objects).
-3. Обери **Whiteboard** або **Game Object** і постав об'єкт у кімнаті.
-4. У налаштуваннях URL об'єкта встав скопійований URL із `?room=...`.
-5. Підійди до об'єкта та відкрий його. Усі користувачі, які відкривають цей об'єкт, бачитимуть одну й ту саму кімнату.
-
-Офіційна інструкція: https://support.help.gather.town/articles/5512361772-interactive-objects
-
-## Як користуватися
-
-**Ведучий** — браузер, у якому було створено радіокімнату:
-- натиснути **«Підключитися»**, вставити посилання `https://music.youtube.com/watch?v=...` або `https://music.youtube.com/playlist?list=...`, натиснути «Завантажити»;
-- натиснути **Play**, далі користуватися кнопками паузи, перемотування, наступного треку;
-- залишити свій плеєр відкритим під час відтворення плейлиста, інакше автоматичне переключення треків не синхронізується.
-
-**Слухач**:
-- відкриває той самий інтерактивний об'єкт;
-- бачить статус ефіру, але звук не вмикається, поки не натисне **«Підключитися»**;
-- якщо браузер заблокував autoplay, натискає **«Увімкнути звук»** або Play в офіційному YouTube-плеєрі;
-- може в будь-який момент натиснути **«Відключитися»**. При повторному вході плеєр переходить до актуальної позиції.
+- Ведучий входить через **Google Sign-in** у Firebase Authentication. Сесія зберігається через `browserLocalPersistence` до виходу, очищення даних сайту або зміни політик браузера.
+- Ведучий шукає музичні відео за назвою через **офіційний YouTube Data API v3**; можна вибирати доступні YouTube-плейлисти свого акаунта.
+- Google-акаунт, який створив кімнату, є єдиним ведучим цієї кімнати; контроль перевіряється **Firebase Realtime Database Rules**, а не лише кнопками інтерфейсу.
+- Інші люди можуть зайти за посиланням **без Google-входу** та натиснути **«Приєднатися»**; вони слухають той же момент композиції приблизно синхронно.
+- Назву, канал/виконавця, обкладинку, статус і приблизну позицію композиції видно навіть без приєднання. Для прослуховування використовується **видимий офіційний YouTube-плеєр**.
+- Кнопки Play/Pause/Next/Seek доступні ведучому, слушачу — тільки приєднання/від'єднання та локальна гучність.
 
 ## Важливі обмеження
 
-- **Не є трансляцією аудіопотоку.** Кожен браузер програє легальний офіційний YouTube embed, а Firebase передає лише ідентифікатор відео, стан та часову позицію.
-- **Не абсолютна синхронність**: похибка може бути від кількох сотень мс до кількох секунд, особливо при нестабільному інтернеті, фонових вкладках і затримках буферизації. Слухач підлаштовується кожні 7 секунд.
-- **YouTube Music посилання ≠ гарантоване вбудовування:** приватні, вікові, регіонально обмежені й деякі «audio-only» записи можуть не відтворюватися. Перевір звичайний YouTube URL відповідного треку.
-- **Плейлисти:** плеєр ведучого переключає композиції й повідомляє слухачам новий video ID. Деякі YouTube Music плейлисти можуть не працювати через обмеження YouTube API.
-- **Політики autoplay:** для звуку може знадобитися клік слухача, навіть після «Підключитися». Це не можна надійно обійти кодом.
-- **Ведучий не може закривати свою вкладку**, якщо важливі наступні треки/оновлення. Поточний трек у слухачів може продовжувати грати після закриття вкладки ведучого, але нових команд не буде.
-- **DJ-прив'язка:** права керування закріплюються за анонімним Firebase-користувачем, який створив ефір. Не очищуй дані сайту й не перемикай браузер, якщо хочеш зберегти роль. Якщо доступ втрачено — створи новий ефір і онови URL в Gather.
-- **У iframe Gather** деякі браузери обмежують third-party storage / OAuth / autoplay. Перевір Chrome. Якщо не працює — відкрий той самий URL кімнати в окремій вкладці.
-- **Захист від сторонніх:** випадковий room ID захищає від вгадування, але всі, хто знає URL, можуть підключатися. Firebase Rules дозволяють змінювати стан лише власнику room ID (DJ). Це робочий прототип для невеликої команди, а не enterprise-авторизація або модерація.
-- У безкоштовного тарифу Firebase є квоти: https://firebase.google.com/pricing
+1. Це **не вхід у повний інтерфейс YouTube Music**. Google OAuth + YouTube Data API не дає повного доступу до музичної бібліотеки, преміум-програвання, рекомендацій і всіх спеціальних плейлистів YouTube Music. Власні плейлисти — саме ті, що доступні через YouTube Data API.
+2. YouTube забороняє відокремлювати аудіо від відео та приховувати офіційний відеоплеєр під час програвання. Тому «лише звук без відео» з джерела YouTube тут не реалізовано.
+3. Користувач зберігає **Firebase-сесію Google** між візитами. Короткочасний OAuth токен YouTube Data API **не зберігається** у localStorage (з міркувань безпеки). Після перезавантаження для пошуку/плейлистів натисни «Підключити YouTube-каталог» та підтвердь доступ, якщо він потрібен. Керування вже вибраним треком не вимагає цього токена.
+4. Наявний ефір, створений попередньою версією **анонімним DJ**, не стане автоматично підконтрольним Google-акаунту. У V3 створи **нову кімнату** після Google-входу й заміни посилання на неї в Gather.
+5. Браузери блокують автозапуск звуку; після приєднання іноді треба натиснути Play в офіційному плеєрі. Вбудоване в Gather вікно може блокувати Google popup/cookies; входь у **звичайній вкладці браузера**.
+6. Деякі YouTube-відео і плейлисти забороняють embed або недоступні за регіоном. Для приватних YouTube-плейлистів embedded playback може не працювати; в інтерфейсі вони недоступні для вибору.
 
-## Тестування
+## Підключення Firebase (існуючий проект 044 Music)
 
-1. Відкрий URL кімнати в основному браузері (ведучий); увімкни трек.
-2. Відкрий URL в іншому браузері чи профілі (слухач); натисни **«Підключитися»**, а за потреби «Увімкнути звук».
-3. Перемотай на 30 секунд у ведучого через кнопки — слухач підлаштується.
-4. Спробуй паузу і наступний трек плейлиста.
-5. Повтори всередині Gather; якщо iframe блокує програвання, відкрий окрему вкладку.
+1. **Firebase Console → 044 Music → Security → Authentication → Sign-in method**. Залиши `Anonymous` увімкненим і **увімкни `Google`**. Збережи.
+2. **Authentication → Settings → Authorized domains**: додай `endrimb-cmyk.github.io` (без `https://` та без шляху `/gather-radio-sync`). Ім'я домену має збігатися з фактичним доменом GitHub Pages.
+3. **Realtime Database → Rules**: встав **весь вміст** `database.rules.json` із цього архіву, натисни **Publish**. Ці правила дозволяють анонімне читання власникам посилання (із Firebase auth), але **запис — тільки Google-ведучому** кімнати. Не роби `.write: true`.
+4. `config.js` уже містить публічну клієнтську конфігурацію **music-c1336**, інших ключів чи секретів не потрібно.
 
-## Ліцензії
+## Увімкни YouTube Data API v3
 
-Цей приклад не обходить DRM, не витягує звукову доріжку та не замінює YouTube Music API. Дотримуйся умов YouTube Embedded Player і прав на контент: https://developers.google.com/youtube/terms/developer-policies
+1. Відкрий https://console.cloud.google.com/apis/library/youtube.googleapis.com
+2. Вибери **той самий Google Cloud project**, що відповідає Firebase `music-c1336` (ідентифікатор проєкту), натисни **Enable**.
+3. Перевір Google Auth Platform / OAuth consent screen: назва застосунку, контактний email, **Audience**. Для тестового зовнішнього застосунку додай Google email ведучого в **Test users**, якщо система цього вимагає. Дозвіл, який застосунок просить: `https://www.googleapis.com/auth/youtube.readonly` (лише читання YouTube-акаунта).
+4. У деяких проєктах додатково потрібно налаштувати branding/OAuth consent. Для широкого публічного використання чутливих scopes Google може вимагати перевірку застосунку. Для внутрішнього тесту використовуй дозволені тестові акаунти.
+5. YouTube Data API має квоту. Зокрема `search.list` коштує **100 units** за запит, тому не роби безперервний автопошук при кожному введеному символі. У цій версії пошук запускається лише кнопкою / Enter.
 
-## Ця персоналізована збірка (044 Music)
+## Оновлення GitHub Pages
 
-`config.js` **уже заповнений** надісланими налаштуваннями Firebase проєкту `music-c1336` (Realtime Database: Belgium, europe-west1). Після завантаження файлів на GitHub вручну змінювати `config.js` не потрібно. Оновлено посилання на Firebase SDK 13.4.0 (відповідає версії в Firebase Console).
+1. Розпакуй ZIP. У репозиторії `https://github.com/endrimb-cmyk/gather-radio-sync` заміни старі файли `index.html`, `app.js`, `config.js`, `database.rules.json`, `README.md` на файли з цього архіву; також переконайся, що `.nojekyll` є у корені.
+2. Після **Commit changes** GitHub Pages оновить сайт. У Settings → Pages має залишатися **Deploy from a branch → main → /(root)**.
+3. Відкрий **https://endrimb-cmyk.github.io/gather-radio-sync/** у звичайній вкладці, натисни **«Увійти через Google»**, вибери акаунт, дозволь доступ YouTube, **«Створити ефір»**.
+4. Скопіюй **новий URL кімнати** з `?room=...` та встав його в Interactive Object у Gather V2.
+5. Перевір із другого браузера: відкрий URL як гість → «Приєднатися» → за потреби Play у YouTube. Ведучий перемикає трек — у слухача змінюється назва, обкладинка й синхронізується відтворення.
 
-Перевір перед тестом:
-1. **Realtime Database → Rules**: опубліковані правила з `database.rules.json` (не встановлюй `.read: true` / `.write: true` на корені).
-2. **Authentication → Sign-in method → Anonymous**: увімкнено.
-3. **Authentication → Settings → Authorized domains**: додай `ТВІЙ-НІК.github.io` лише якщо отримаєш помилку `auth/unauthorized-domain` (при анонімному вході може не знадобитися).
-4. **GitHub Pages**: завантаж *розпаковані файли*, а не ZIP. Користувацький URL на GitHub Pages повинен відкриватися по HTTPS.
+## Налагодження
 
-Цей прототип не підключено до твоєї бази від мого середовища, тому Firebase авторизацію, реальне двостороннє з'єднання та вбудоване відтворення YouTube треба протестувати вже на опублікованому сайті.
-Gather Radio ready
+| Помилка | Що перевірити |
+|---|---|
+| `auth/operation-not-allowed` | Firebase Authentication → Sign-in method → Google і Anonymous |
+| `auth/unauthorized-domain` | Firebase → Authentication → Settings → Authorized domains → `endrimb-cmyk.github.io` |
+| `access_denied` / `app not verified` | OAuth consent screen → Audience → Test users + дозволи |
+| `YouTube Data API has not been used in project...` | API Library → YouTube Data API v3 → Enable в **music-c1336** |
+| `Permission denied` при створенні кімнати | Realtime Database → Rules → Publish **нові правила V3**; Google login має бути дійсним |
+| `quotaExceeded` | Ліміт запитів YouTube API, перевір quota в Google Cloud |
+| `popup-blocked` у Gather | Відкрити GitHub Pages у звичайній вкладці браузера |
+| Відео не програється / YouTube error 153 | Немає коректного контексту embed/referrer або відео забороняє embedding; спробуй іншу пісню або звичайну вкладку |
+
+Технічна примітка: перевірено синтаксис JavaScript та JSON. Живі Google OAuth, Firebase та YouTube виклики потребують налаштування сервісів на твоєму акаунті й окремого тестування.
+
+Офіційна документація:
+- Firebase Google sign-in: https://firebase.google.com/docs/auth/web/google-signin
+- Firebase Auth persistence: https://firebase.google.com/docs/auth/web/auth-state-persistence
+- YouTube Data API: https://developers.google.com/youtube/data/guides/implementation/playlists
+- YouTube developer policies: https://developers.google.com/youtube/terms/developer-policies/
